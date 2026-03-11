@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Platform, TextInput, Modal, ScrollView, Dimensions } from 'react-native';
 import MapView, { Marker } from '../components/MapWrapper';
 import { useAppContext } from '../context/AppContext';
@@ -7,9 +7,15 @@ const HomeScreen = ({ navigation }) => {
     const {
         deviceId, role, currentLocation,
         activeDelivery, activeDeliveries, completedDeliveries, deliveryStatus,
-        availableDevices, createDelivery,
+        availableDevices, createDelivery, sendMission,
         setManualLocation, isManualLocation, setIsManualLocation
     } = useAppContext();
+
+    const [missionLat, setMissionLat] = useState('');
+    const [missionLon, setMissionLon] = useState('');
+    const [missionAlt, setMissionAlt] = useState('20');
+    const [missionStatus, setMissionStatus] = useState('');
+    const [missionMarker, setMissionMarker] = useState(null);
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedDrone, setSelectedDrone] = useState(null);
@@ -19,6 +25,9 @@ const HomeScreen = ({ navigation }) => {
     const [notes, setNotes] = useState('');
     const [showMap, setShowMap] = useState(false);
     const [lastAlertedStatus, setLastAlertedStatus] = useState(null);
+    const [mapRegion, setMapRegion] = useState({ latitude: 10.762622, longitude: 106.660172, latitudeDelta: 0.1, longitudeDelta: 0.1 });
+
+    const mapRef = useRef(null);
 
     useEffect(() => {
         if (activeDelivery && role === 'DRONE') {
@@ -61,6 +70,21 @@ const HomeScreen = ({ navigation }) => {
         resetForm();
     };
 
+    const handleSendMission = async () => {
+        if (!missionLat || !missionLon) {
+            Alert.alert('Lỗi', 'Vui lòng nhập tọa độ Lat/Lon');
+            return;
+        }
+        setMissionStatus('Đang gửi...');
+        const ok = await sendMission(parseFloat(missionLat), parseFloat(missionLon), parseFloat(missionAlt));
+        if (ok) {
+            setMissionStatus('Gửi thành công!');
+            setTimeout(() => setMissionStatus(''), 3000);
+        } else {
+            setMissionStatus('Gửi thất bại!');
+        }
+    };
+
     const resetForm = () => {
         setSelectedDrone(null);
         setSelectedDest(null);
@@ -70,8 +94,38 @@ const HomeScreen = ({ navigation }) => {
     };
 
     const handleMapClick = (coord) => {
+        if (!coord) return;
+
+        const lat = coord.latitude || coord.lat;
+        const lon = coord.longitude || coord.lng;
+
+        if (lat === undefined || lon === undefined) return;
+
         if (Platform.OS === 'web' && (role === 'DRONE' || role === 'DESTINATION')) {
-            setManualLocation(coord.latitude, coord.longitude);
+            setManualLocation(lat, lon);
+        }
+        if (role === 'ADMIN') {
+            setMissionLat(lat.toFixed(6).toString());
+            setMissionLon(lon.toFixed(6).toString());
+            const newCoord = { latitude: lat, longitude: lon };
+            setMissionMarker(newCoord);
+            setMapRegion(prev => ({ ...prev, latitude: lat, longitude: lon }));
+        }
+    };
+
+    const handleSelectDevice = (device) => {
+        if (role !== 'ADMIN') return;
+        if (device.lat && device.lng) {
+            setMissionLat(device.lat.toFixed(6).toString());
+            setMissionLon(device.lng.toFixed(6).toString());
+            const newCoord = { latitude: device.lat, longitude: device.lng };
+            setMissionMarker(newCoord);
+            setMapRegion({
+                latitude: device.lat,
+                longitude: device.lng,
+                latitudeDelta: 0.02,
+                longitudeDelta: 0.02
+            });
         }
     };
 
@@ -230,22 +284,68 @@ const HomeScreen = ({ navigation }) => {
                         ))}
                     </ScrollView>
 
+                    <Text style={styles.sectionTitle}>✈️ INAV Mission Control</Text>
+                    <View style={styles.missionBox}>
+                        <View style={styles.missionInputRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.miniLabel}>Vĩ độ (Lat):</Text>
+                                <TextInput style={styles.missionInput} placeholder="10.7..." value={missionLat} onChangeText={setMissionLat} keyboardType="numeric" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.miniLabel}>Kinh độ (Lon):</Text>
+                                <TextInput style={styles.missionInput} placeholder="106.6..." value={missionLon} onChangeText={setMissionLon} keyboardType="numeric" />
+                            </View>
+                        </View>
+                        <Text style={[styles.miniLabel, { marginTop: 10 }]}>Độ cao (Alt - mét):</Text>
+                        <TextInput style={[styles.missionInput, { width: '100%' }]} placeholder="20" value={missionAlt} onChangeText={setMissionAlt} keyboardType="numeric" />
+                        <TouchableOpacity style={[styles.sendMissionBtn, { marginTop: 15 }]} onPress={handleSendMission}>
+                            <Text style={styles.sendMissionText}>🚀 Gửi Waypoint tới Drone</Text>
+                        </TouchableOpacity>
+                        {missionStatus ? <Text style={styles.missionStatusText}>{missionStatus}</Text> : null}
+                        <Text style={styles.missionHint}>* Chạm vào bản đồ để lấy tọa độ tự động</Text>
+                    </View>
+
                     <Text style={styles.sectionTitle}>Thiết bị Online:</Text>
                     <ScrollView style={styles.deviceListScroll}>
                         {availableDevices.map(d => (
-                            <View key={d.id} style={styles.deviceRow}>
-                                <Text>{d.role === 'DRONE' ? '🚁' : '📍'} {d.id}</Text>
-                                <Text style={styles.roleTag}>{d.role}</Text>
-                            </View>
+                            <TouchableOpacity
+                                key={d.id}
+                                style={[styles.deviceItem, d.role === 'DESTINATION' && styles.destSelectable]}
+                                onPress={() => handleSelectDevice(d)}
+                            >
+                                <View style={styles.deviceInfoRow}>
+                                    <Text style={styles.deviceId}>{d.role === 'DESTINATION' ? '📍' : '🚁'} {d.id}</Text>
+                                    <Text style={[styles.roleBadge, d.role === 'DRONE' ? styles.droneBadge : styles.destBadge]}>{d.role}</Text>
+                                </View>
+                                <Text style={styles.deviceCoord}>
+                                    {d.lat ? `${d.lat.toFixed(6)}, ${d.lng.toFixed(6)}` : 'Đang lấy vị trí...'}
+                                </Text>
+                                {d.role === 'DESTINATION' && <Text style={styles.selectHint}>Chạm để chọn điểm này</Text>}
+                            </TouchableOpacity>
                         ))}
                     </ScrollView>
                 </View>
 
                 <View style={styles.mapContainer}>
-                    <MapView style={styles.map} region={{ latitude: 10.762622, longitude: 106.660172, latitudeDelta: 0.1, longitudeDelta: 0.1 }}>
+                    <MapView
+                        ref={mapRef}
+                        style={styles.map}
+                        onMapClick={handleMapClick}
+                        region={mapRegion}
+                    >
                         {availableDevices.map(d => d.lat && (
-                            <Marker key={d.id} coordinate={{ latitude: d.lat, longitude: d.lng }} title={d.id} description={d.role} pinColor={d.role === 'DRONE' ? 'blue' : 'red'} />
+                            <Marker
+                                key={d.id}
+                                coordinate={{ latitude: d.lat, longitude: d.lng }}
+                                title={d.id}
+                                description={d.role}
+                                pinColor={d.role === 'DRONE' ? 'blue' : 'red'}
+                                onPress={() => handleSelectDevice(d)}
+                            />
                         ))}
+                        {missionMarker && (
+                            <Marker coordinate={missionMarker} title="Mission Target" pinColor="purple" />
+                        )}
                     </MapView>
                 </View>
 
@@ -408,7 +508,21 @@ const styles = StyleSheet.create({
     textWhite: { color: 'white' },
     emptyText: { color: '#999', fontStyle: 'italic', padding: 10 },
     disabledItem: { backgroundColor: '#e0e0e0', borderColor: '#ccc', opacity: 0.7 },
-    disabledText: { color: '#999' }
+    disabledText: { color: '#999' },
+    missionBox: { backgroundColor: '#f8fafc', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#e2e8f0', marginTop: 10, width: '100%', alignSelf: 'stretch' },
+    missionInputRow: { flexDirection: 'row', width: '100%', gap: 8 },
+    missionInput: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 8, backgroundColor: '#fff', fontSize: 13, color: '#334155', flex: 1 },
+    miniLabel: { fontSize: 10, fontWeight: 'bold', color: '#64748b', marginBottom: 4 },
+    sendMissionBtn: { backgroundColor: '#8b5cf6', padding: 12, borderRadius: 10, alignItems: 'center' },
+    sendMissionText: { color: 'white', fontWeight: 'bold', fontSize: 14 },
+    missionStatusText: { textAlign: 'center', marginTop: 10, fontSize: 12, fontWeight: 'bold', color: '#8b5cf6' },
+    missionHint: { fontSize: 10, color: '#94a3b8', marginTop: 8, fontStyle: 'italic', textAlign: 'center' },
+    destSelectable: { borderLeftWidth: 4, borderLeftColor: '#4CAF50', backgroundColor: '#f0fdf4' },
+    deviceInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    roleBadge: { fontSize: 9, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, overflow: 'hidden', fontWeight: 'bold' },
+    droneBadge: { backgroundColor: '#E3F2FD', color: '#1976D2' },
+    destBadge: { backgroundColor: '#E8F5E9', color: '#2E7D32' },
+    selectHint: { fontSize: 9, color: '#4CAF50', marginTop: 4, fontWeight: 'bold' }
 });
 
 export default HomeScreen;

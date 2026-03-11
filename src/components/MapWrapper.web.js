@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -12,6 +12,11 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom Icons
+const missionIcon = new L.DivIcon({
+    html: '<div style="font-size: 30px; filter: drop-shadow(0 0 5px rgba(139, 92, 246, 0.5));">🎯</div>',
+    iconSize: [30, 30],
+    className: 'mission-marker'
+});
 const droneIcon = new L.DivIcon({
     html: '<div style="font-size: 30px;">🚁</div>',
     iconSize: [30, 30],
@@ -36,7 +41,7 @@ const grayIcon = new L.DivIcon({
     className: 'gray-icon'
 });
 
-// Center map when region changes
+// Handle map events
 function MapEvents({ onMapClick, center }) {
     const map = useMap();
 
@@ -46,11 +51,14 @@ function MapEvents({ onMapClick, center }) {
         }
     }, [center]);
 
-    if (onMapClick) {
-        map.on('click', (e) => {
-            onMapClick({ latitude: e.latlng.lat, longitude: e.latlng.lng });
-        });
-    }
+    useMapEvents({
+        click: (e) => {
+            if (onMapClick) {
+                onMapClick({ latitude: e.latlng.lat, longitude: e.latlng.lng });
+            }
+        }
+    });
+
     return null;
 }
 
@@ -90,9 +98,18 @@ export const Marker_ = ({ coordinate, title, description, pinColor, children }) 
     else if (pinColor === 'red' || pinColor === 'DESTINATION') icon = destIcon;
     else if (pinColor === 'green') icon = greenIcon;
     else if (pinColor === 'gray') icon = grayIcon;
+    else if (pinColor === 'purple') icon = missionIcon;
 
     return (
-        <Marker position={[coordinate.latitude, coordinate.longitude]} icon={icon}>
+        <Marker
+            position={[coordinate.latitude, coordinate.longitude]}
+            icon={icon}
+            eventHandlers={{
+                click: () => {
+                    if (onPress) onPress();
+                }
+            }}
+        >
             {(title || description) && (
                 <Popup>
                     <strong>{title}</strong><br />
