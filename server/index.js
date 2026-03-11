@@ -20,6 +20,7 @@ const devices = {}; // { [socketId]: { id, role, lat, lng, socketId } }
 const deviceSocketMap = {}; // deviceId -> socketId
 const deliveries = {}; // { [deliveryId]: { ... } }
 const restDevices = {}; // { [deviceId]: { id, role, lat, lng } } — devices registered via REST (Unity)
+let latestMission = null; // { lat, lon, alt, status }
 
 // --- Constants ---
 const DISTANCE_ARRIVED = 50; // meters
@@ -178,6 +179,37 @@ app.post('/api/drone/:droneId/status', (req, res) => {
         }
     }
 
+    res.json({ ok: true });
+});
+
+// --- Home Test Mission API ---
+app.post('/mission', (req, res) => {
+    const { lat, lon, alt } = req.body;
+    if (lat === undefined || lon === undefined || alt === undefined) {
+        return res.status(400).json({ error: 'lat, lon, and alt are required' });
+    }
+    latestMission = {
+        lat,
+        lon,
+        alt,
+        status: 'pending'
+    };
+    console.log(`[MISSION] New mission received: ${lat}, ${lon}, ${alt}`);
+    res.json({ ok: true, mission: latestMission });
+});
+
+app.get('/mission', (req, res) => {
+    if (!latestMission) {
+        return res.json({ status: 'no_mission' });
+    }
+    res.json(latestMission);
+});
+
+// Endpoint for bridge script to mark mission as processed
+app.post('/mission/processed', (req, res) => {
+    if (latestMission) {
+        latestMission.status = 'processed';
+    }
     res.json({ ok: true });
 });
 

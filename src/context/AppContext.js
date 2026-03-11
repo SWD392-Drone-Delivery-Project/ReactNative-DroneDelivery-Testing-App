@@ -7,7 +7,7 @@ const AppContext = createContext();
 export const AppProvider = ({ children }) => {
     const [deviceId, setDeviceId] = useState(null);
     const [role, setRole] = useState(null); // 'DRONE' | 'DESTINATION' | 'ADMIN'
-    const [serverUrl, setServerUrl] = useState('https://doubt-heavily-guy-hull.trycloudflare.com');
+    const [serverUrl, setServerUrl] = useState('http://localhost:3000');
 
     const [currentLocation, setCurrentLocation] = useState(null);
     const [isManualLocation, setIsManualLocation] = useState(false);
@@ -169,6 +169,20 @@ export const AppProvider = ({ children }) => {
         }
     };
 
+    const sendMission = async (lat, lon, alt) => {
+        try {
+            const response = await fetch(`${serverUrl}/mission`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat, lon, alt })
+            });
+            return response.ok;
+        } catch (error) {
+            console.error("Error sending mission:", error);
+            return false;
+        }
+    };
+
     return (
         <AppContext.Provider
             value={{
@@ -186,6 +200,7 @@ export const AppProvider = ({ children }) => {
                 deliveryStatus,
                 createDelivery,
                 confirmDelivery,
+                sendMission,
                 setManualLocation,
                 isManualLocation,
                 setIsManualLocation
