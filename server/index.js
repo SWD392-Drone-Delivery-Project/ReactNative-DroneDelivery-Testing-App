@@ -184,18 +184,12 @@ app.post('/api/drone/:droneId/status', (req, res) => {
 
 // --- Home Test Mission API ---
 app.post('/mission', (req, res) => {
-    const { lat, lon, alt } = req.body;
-    if (lat === undefined || lon === undefined || alt === undefined) {
-        return res.status(400).json({ error: 'lat, lon, and alt are required' });
-    }
-    latestMission = {
-        lat,
-        lon,
-        alt,
-        status: 'pending'
-    };
-    console.log(`[MISSION] New mission received: ${lat}, ${lon}, ${alt}`);
-    res.json({ ok: true, mission: latestMission });
+    const { lat, lon, alt, arm } = req.body;
+    // Tự động Arm nếu không truyền (hoặc truyền undefined)
+    const shouldArm = arm !== undefined ? !!arm : true;
+    latestMission = { lat, lon, alt, arm: shouldArm, status: 'pending' };
+    console.log('Mission received:', latestMission);
+    res.json({ message: 'Mission received', mission: latestMission });
 });
 
 app.get('/mission', (req, res) => {

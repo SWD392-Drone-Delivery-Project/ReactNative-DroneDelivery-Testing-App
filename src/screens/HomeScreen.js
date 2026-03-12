@@ -76,10 +76,11 @@ const HomeScreen = ({ navigation }) => {
             return;
         }
         setMissionStatus('Đang gửi...');
-        const ok = await sendMission(parseFloat(missionLat), parseFloat(missionLon), parseFloat(missionAlt));
+        // Tự động Arm khi gửi nhiệm vụ
+        const ok = await sendMission(parseFloat(missionLat), parseFloat(missionLon), parseFloat(missionAlt), true);
         if (ok) {
-            setMissionStatus('Gửi thành công!');
-            setTimeout(() => setMissionStatus(''), 3000);
+            setMissionStatus('🚀 Đã gửi! (Motor sẽ tự động quay)');
+            setTimeout(() => setMissionStatus(''), 5000);
         } else {
             setMissionStatus('Gửi thất bại!');
         }
@@ -298,8 +299,14 @@ const HomeScreen = ({ navigation }) => {
                         </View>
                         <Text style={[styles.miniLabel, { marginTop: 10 }]}>Độ cao (Alt - mét):</Text>
                         <TextInput style={[styles.missionInput, { width: '100%' }]} placeholder="20" value={missionAlt} onChangeText={setMissionAlt} keyboardType="numeric" />
+
+                        <View style={styles.autoArmMessage}>
+                            <Text style={styles.armText}>🚀 Motor sẽ tự động Arm khi gửi</Text>
+                            <Text style={styles.safetyHint}>⚠️ THÁO CÁNH QUẠT KHI TEST!</Text>
+                        </View>
+
                         <TouchableOpacity style={[styles.sendMissionBtn, { marginTop: 15 }]} onPress={handleSendMission}>
-                            <Text style={styles.sendMissionText}>🚀 Gửi Waypoint tới Drone</Text>
+                            <Text style={styles.sendMissionText}>🚀 Gửi Waypoint & Start Motor</Text>
                         </TouchableOpacity>
                         {missionStatus ? <Text style={styles.missionStatusText}>{missionStatus}</Text> : null}
                         <Text style={styles.missionHint}>* Chạm vào bản đồ để lấy tọa độ tự động</Text>
@@ -517,6 +524,9 @@ const styles = StyleSheet.create({
     sendMissionText: { color: 'white', fontWeight: 'bold', fontSize: 14 },
     missionStatusText: { textAlign: 'center', marginTop: 10, fontSize: 12, fontWeight: 'bold', color: '#8b5cf6' },
     missionHint: { fontSize: 10, color: '#94a3b8', marginTop: 8, fontStyle: 'italic', textAlign: 'center' },
+    autoArmMessage: { backgroundColor: '#fff1f2', padding: 10, borderRadius: 8, marginTop: 15, borderWidth: 1, borderColor: '#fecaca', alignItems: 'center' },
+    armText: { fontSize: 12, fontWeight: 'bold', color: '#dc2626', marginBottom: 2 },
+    safetyHint: { fontSize: 10, color: '#ef4444', fontWeight: 'bold' },
     destSelectable: { borderLeftWidth: 4, borderLeftColor: '#4CAF50', backgroundColor: '#f0fdf4' },
     deviceInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
     roleBadge: { fontSize: 9, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, overflow: 'hidden', fontWeight: 'bold' },
