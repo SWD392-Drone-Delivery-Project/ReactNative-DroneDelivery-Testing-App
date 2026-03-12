@@ -169,16 +169,16 @@ export const AppProvider = ({ children }) => {
         }
     };
 
-    const sendMission = async (lat, lon, alt) => {
+    const sendMission = async (lat, lon, alt, arm = false) => {
         try {
             const response = await fetch(`${serverUrl}/mission`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lat, lon, alt })
+                body: JSON.stringify({ lat, lon, alt, arm }),
             });
             return response.ok;
         } catch (error) {
-            console.error("Error sending mission:", error);
+            console.error('Error sending mission:', error);
             return false;
         }
     };
