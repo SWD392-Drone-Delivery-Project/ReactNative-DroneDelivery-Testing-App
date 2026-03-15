@@ -3,7 +3,7 @@ import serial
 import struct
 import time
 import logging
-
+import os
 # --- Configuration ---
 SERIAL_PORT = "/dev/ttyACM0"
 BAUD = 115200
@@ -126,8 +126,8 @@ def main():
         return
 
     try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
-        logger.info(f"Connected to {SERIAL_PORT} at {BAUD_RATE}")
+        ser = serial.Serial(SERIAL_PORT, BAUD, timeout=0.1)
+        logger.info(f"Connected to {SERIAL_PORT} at {BAUD}")
         
         # Test connection by requesting STATUS (101)
         logger.info("Testing connection to INAV...")
