@@ -1,37 +1,30 @@
-# Hướng dẫn chạy ứng dụng DroneDelivery
+# Quick Start Guide
 
-## Yêu cầu
-- Node.js (phiên bản LTS được khuyến nghị)
-- npm hoặc yarn
+Tài liệu này là phiên bản rút gọn giúp bạn khởi chạy dự án nhanh chóng. Xin vui lòng xem file `README.md` mới nhất để biết chi tiết luồng hoạt động và cách cấu hình Motor / ESP32.
 
-## Cài đặt thư viện
-Trước khi chạy ứng dụng, hãy chắc chắn rằng bạn đã cài đặt các thư viện cần thiết:
+### 1. Cài đặt Server
+```bash
+cd server
+npm install
+node index.js
+```
 
+### 2. Cài đặt App
+Mở một cửa sổ dòng lệnh khác ở thư mục ngoài cùng.
 ```bash
 npm install
-```
-
-## Chạy ứng dụng
-
-### 1. Khởi động Development Server
-Chạy lệnh sau để khởi động Expo development server:
-
-```bash
 npm start
 ```
-hoặc
-```bash
-npx expo start
-```
+- Ấn `w` để chạy Web.
+- Quét mã QR bằng app Expo Go để chạy thật trên điện thoại.
 
-### 2. Chạy trên thiết bị/giả lập
+### 3. Cấu hình IP Mạng
+Khi ứng dụng bật lên, bạn sẽ thấy ô nhập "Server URL". 
+- Nếu bạn chạy Web và Server trên cùng 1 máy tính: điền `http://localhost:3000`.
+- Nếu bạn chạy App trên điện thoại: Bạn bắt buộc phải **thay localhost** thành IP LAN của máy tính (vd: `http://192.168.1.5:3000`) hoặc đường link Tunnel (ngrok / cloudflare). Nếu không, điện thoại sẽ báo lỗi `xhr poll error`.
 
-- **Android**: Nhấn `a` trong terminal sau khi server đã khởi động, hoặc chạy `npm run android`.
-- **iOS**: Nhấn `i` trong terminal (chỉ trên macOS), hoặc chạy `npm run ios`.
-- **Web**: Nhấn `w` trong terminal, hoặc chạy `npm run web`.
+Dự án có ba vai trò chính: Điền ID túy ý và chọn vai trò: **ADMIN**, **DRONE**, hoặc **DESTINATION**.
 
-### 3. Quét mã QR
-Nếu bạn cài đặt ứng dụng **Expo Go** trên điện thoại (Android hoặc iOS), bạn có thể quét mã QR hiển thị trên terminal để chạy ứng dụng trực tiếp trên thiết bị của mình.
-
-## Lưu ý
-- Đảm bảo thiết bị của bạn và máy tính đang kết nối cùng một mạng Wi-Fi nếu bạn test trên thiết bị thật.
+### Gặp sự cố kết nối?
+- Server báo chạy ở port 3000 nhưng điện thoại không vào được? Hãy tắt Tường lửa (Firewall) trên máy tính hoặc sử dụng lệnh Cloudflared: `cloudflared tunnel --url http://localhost:3000` và copy dãy link HTTPS đó bỏ vào ô Server URL trên App.
+- Motor trên Drone không quay? Hãy mở Serial Monitor của Arduino IDE xem có in ra lỗi báo giải mã JSON (`JSON parse error`) không, và đảm bảo WiFi được cấu hình đúng chuẩn. Motor chỉ thực sự quay khi qua giai đoạn 1.5 giây an toàn.
