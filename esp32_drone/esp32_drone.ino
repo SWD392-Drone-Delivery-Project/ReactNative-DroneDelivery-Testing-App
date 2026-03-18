@@ -34,6 +34,7 @@ unsigned long lastJsonTelemetry = 0;
 
 bool isMotorRunning = false;
 int motorThrottle = 1000;
+int currentThrottle = 1000; // actual throttle applied to motor
 unsigned long lastMspRcTime = 0;
 int motorState = 0; // 0=idle, 1=arming, 2=flying
 unsigned long armStartTime = 0;
@@ -55,8 +56,9 @@ void sendMspPacket(uint8_t cmd, uint8_t* payload, uint8_t size) {
   Serial1.write(crc);
 }
 
-void sendRcPacket(uint16_t throttle, uint16_t aux1) {
-  uint16_t rc[8] = {1500, 1500, throttle, 1500, aux1, 1000, 1000, 1000};
+void sendRcPacket(uint16_t throttle, uint16_t aux_arm) {
+  // rc array: { Roll(CH1), Pitch(CH2), Throttle(CH3), Yaw(CH4), AUX1(CH5), AUX2(CH6), AUX3(CH7), AUX4(CH8) }
+  uint16_t rc[8] = {1500, 1500, throttle, 1500, 1000, aux_arm, 1000, 1000};
   uint8_t payload[16];
   for (int i = 0; i < 8; i++) {
     payload[i*2]   = rc[i] & 0xFF;
@@ -132,6 +134,7 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
         isMotorRunning = false;
         motorState = 0;
         motorThrottle = 1000;
+        currentThrottle = 1000;
         Serial.println("[MSP] DISARM sent, motor stopped");
         return;
       }
@@ -227,26 +230,45 @@ void loop() {
   // --- RC State Machine ---
   bool tcpActive = tcpClient && tcpClient.connected();
 
-  if (isMotorRunning && millis() - lastMspRcTime > 100) {
+  if (!tcpActive && millis() - lastMspRcTime > 50) {
     lastMspRcTime = millis();
 
-    if (motorState == 1) {
-      // ARMING: throttle thấp + AUX1=1800
-      sendRcPacket(1000, 1800);
-      sendMspPacket(151, NULL, 0); // MSP_ARM
-      if (millis() - armStartTime > 1500) {
-        motorState = 2;
-        Serial.println("[MSP] Armed! Ramping throttle...");
+    if (!isMotorRunning) {
+      // IDLE STATE: Always send disarmed RC to prevent FC rx_loss
+      sendRcPacket(1000, 1000);
+    } else {
+      // ACTIVE STATE
+      // motorState 1 = PRE_ARM (Throttle 1000, AUX1 1000) for 500ms to clear arming flags
+      // motorState 2 = ARMING (Throttle 1000, AUX1 1800) for 1500ms
+      // motorState 3 = FLYING (Throttle Target, AUX1 1800)
+      
+      unsigned long elapsed = millis() - armStartTime;
+
+      if (motorState == 1) {
+        currentThrottle = 1000;
+        sendRcPacket(1000, 1000); // Disarmed low throttle
+        if (elapsed > 500) {
+          motorState = 2; // Transition to Arming
+          Serial.println("[MSP] PRE-ARM clear, flicking Arm switch...");
+        }
+      } else if (motorState == 2) {
+        sendRcPacket(1000, 1800); // Armed low throttle
+        if (elapsed > 2000) { // 500ms pre-arm + 1500ms arming
+          motorState = 3; // Transition to Flying
+          Serial.println("[MSP] Armed! Ramping throttle...");
+        }
+      } else if (motorState == 3) {
+        // Smoothly ramp throttle up or down
+        if (currentThrottle < motorThrottle) {
+          currentThrottle += 2; // Ramp up by 2 every 50ms (+40/sec)
+          if (currentThrottle > motorThrottle) currentThrottle = motorThrottle;
+        } else if (currentThrottle > motorThrottle) {
+          currentThrottle -= 5; // Ramp down slightly faster
+          if (currentThrottle < motorThrottle) currentThrottle = motorThrottle;
+        }
+        sendRcPacket((uint16_t)currentThrottle, 1800); // Flying
       }
-    } else if (motorState == 2) {
-      // FLYING: throttle thật + AUX1=1800
-      sendRcPacket((uint16_t)motorThrottle, 1800);
     }
-
-  } else if (!isMotorRunning && !tcpActive && millis() - lastMspRcTime > 500) {
-    // Idle + không có Configurator → giữ disarm nhẹ
-    lastMspRcTime = millis();
-    sendRcPacket(1000, 1000);
   }
 
   // --- TCP Client ---
@@ -268,7 +290,7 @@ void loop() {
     while (tcpClient.available()) {
       uint8_t b = tcpClient.read();
       Serial1.write(b);
-      Serial.printf("TCP->FC: 0x%02X\n", b);
+      // Serial.printf("TCP->FC: 0x%02X\n", b); // Spam log
     }
   }
 
@@ -305,8 +327,9 @@ void loop() {
       doc["lat"]      = 10.762622;
       doc["lng"]      = 106.660172;
       doc["alt"]      = 0;
-      doc["throttle"] = motorThrottle;
+      doc["throttle"] = currentThrottle;
       doc["state"]    = motorState;
+      doc["armed"]    = (motorState >= 2); // Expose arming status to UI
 
       char jsonBuffer[256];
       serializeJson(doc, jsonBuffer);
