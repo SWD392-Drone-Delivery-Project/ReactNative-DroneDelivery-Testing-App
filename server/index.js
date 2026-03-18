@@ -115,6 +115,23 @@ app.get('/api/devices', (req, res) => {
     res.json(getAllDevices());
 });
 
+// Polling fallback to get drone telemetry
+app.get('/api/drones/telemetry', (req, res) => {
+    const droneStats = {};
+    const all = getAllDevices();
+    all.forEach(d => {
+        if (d.role === 'DRONE') {
+            droneStats[d.id] = {
+                id: d.id,
+                lat: d.lat,
+                lng: d.lng,
+                lastSeen: Date.now()
+            };
+        }
+    });
+    res.json(droneStats);
+});
+
 // --- Unity Drone REST API ---
 // Unity polls this to check for assigned tasks
 app.get('/api/drone/:droneId/task', (req, res) => {
@@ -281,6 +298,22 @@ io.on('connection', (socket) => {
         // Efficient broadcast: only once per update
         socket.broadcast.emit('device_location_update', { id: device.id, lat, lng });
 
+        checkAllDeliveriesStatus();
+    });
+
+    socket.on('update_headless_drone', ({ id, lat, lng }) => {
+        // This is a bridge from the Admin app forwarding MQTT GPS to the server
+        if (!deviceSocketMap[id]) {
+            const headlessId = `headless-${id}`;
+            deviceSocketMap[id] = headlessId;
+            devices[headlessId] = { id, role: 'DRONE', lat, lng, socketId: headlessId, locked: false };
+        } else {
+            const sockId = deviceSocketMap[id];
+            if (devices[sockId]) {
+                devices[sockId].lat = lat;
+                devices[sockId].lng = lng;
+            }
+        }
         checkAllDeliveriesStatus();
     });
 
