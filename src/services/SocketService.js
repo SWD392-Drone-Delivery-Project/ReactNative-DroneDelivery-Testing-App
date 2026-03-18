@@ -54,6 +54,12 @@ const SocketService = {
         }
     },
 
+    updateHeadlessDrone: (id, lat, lng) => {
+        if (SocketService.socket && SocketService.socket.connected) {
+            SocketService.socket.emit('update_headless_drone', { id, lat, lng });
+        }
+    },
+
     createDelivery: (droneId, destId, items, quantity, notes) => {
         if (SocketService.socket) {
             console.log("[SOCKET] Creating delivery:", { droneId, destId, items, quantity, notes });

@@ -90,7 +90,7 @@ export const MapView = ({ children, region, style, initialRegion, showsUserLocat
 };
 
 // Marker Wrapper
-export const Marker_ = ({ coordinate, title, description, pinColor, children }) => {
+export const Marker_ = ({ coordinate, title, description, pinColor, onPress, children }) => {
     if (!coordinate || !coordinate.latitude) return null;
 
     let icon = undefined;
