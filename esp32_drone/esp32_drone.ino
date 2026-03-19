@@ -31,6 +31,7 @@ int fcPreLen = 0;
 unsigned long lastPublish = 0;
 unsigned long lastMqttAttempt = 0;
 unsigned long lastJsonTelemetry = 0;
+unsigned long lastMqttConnectTime = 0;
 
 bool isMotorRunning = false;
 int motorThrottle = 1000;
@@ -88,6 +89,12 @@ void sendWaypoint(float lat, float lon, float alt) {
 }
 
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
+  // Ignore messages right after connecting to prevent acting on old retained MQTT messages
+  if (millis() - lastMqttConnectTime < 2000) {
+    Serial.println("[MQTT] Ignoring message right after connect (likely retained)");
+    return;
+  }
+
   char msgStr[length + 1];
   memcpy(msgStr, payload, length);
   msgStr[length] = '\0';
@@ -167,6 +174,7 @@ void connectMQTT() {
     if (mqtt.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
       Serial.println("MQTT Connected!");
       mqtt.subscribe(topic_in);
+      lastMqttConnectTime = millis();
     } else {
       Serial.printf("Failed rc=%d\n", mqtt.state());
       net.stop();
@@ -219,6 +227,7 @@ void loop() {
       if (mqtt.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
         Serial.println("MQTT Connected!");
         mqtt.subscribe(topic_in);
+        lastMqttConnectTime = millis();
       } else {
         Serial.printf("Failed rc=%d\n", mqtt.state());
       }
