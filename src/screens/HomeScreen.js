@@ -24,6 +24,7 @@ const HomeScreen = ({ navigation }) => {
     const [quantity, setQuantity] = useState('1');
     const [notes, setNotes] = useState('');
     const [showMap, setShowMap] = useState(false);
+    const [isEditingLocation, setIsEditingLocation] = useState(false);
     const [lastAlertedStatus, setLastAlertedStatus] = useState(null);
     const [mapRegion, setMapRegion] = useState({ latitude: 10.762622, longitude: 106.660172, latitudeDelta: 0.1, longitudeDelta: 0.1 });
 
@@ -68,14 +69,22 @@ const HomeScreen = ({ navigation }) => {
         createDelivery(selectedDrone, selectedDest, items, parseInt(quantity) || 1, notes);
 
         // --- AUTO FLY LOGIC ---
-        // Khi giao nhiệm vụ, lấy toạ độ điểm đến và tự động gửi lệnh quay motor 17%
+        // Khi giao nhiệm vụ, lấy toạ độ điểm đến và tự động gửi lệnh quay motor
         const targetDest = destinations.find(d => d.id === selectedDest);
         if (targetDest && targetDest.lat && targetDest.lng) {
-            sendMission(targetDest.lat, targetDest.lng, 20, true, 17); // Throttle 17%
+            sendMission(targetDest.lat, targetDest.lng, 20, true, 11); // Throttle
+        if (Platform.OS === 'web') {
+                window.alert("🚀 Đã giao nhiệm vụ! Drone đang quay motor và bay tới điểm đến.");
+        } else {
+                Alert.alert("Thành công", "🚀 Đã giao nhiệm vụ! Drone đang quay motor và bay tới điểm đến.");
+            }
+        } else {
+            console.log(`[WARN] Skipping start_motor: Destination ${selectedDest} does not have valid GPS coordinates!`);
+            const warnMsg = "⚠️ Đã giao nhiệm vụ, nhưng KHÔNG gửi lệnh quay motor vì Điểm đến chưa có GPS.";
             if (Platform.OS === 'web') {
-                window.alert("🚀 Đã giao nhiệm vụ! Drone đang quay motor (17%) và bay tới điểm đến.");
+                window.alert(warnMsg);
             } else {
-                Alert.alert("Thành công", "🚀 Đã giao nhiệm vụ! Drone đang quay motor (17%) và bay tới điểm đến.");
+                Alert.alert("Lưu ý", warnMsg);
             }
         }
 
@@ -115,8 +124,10 @@ const HomeScreen = ({ navigation }) => {
 
         if (lat === undefined || lon === undefined) return;
 
-        if (Platform.OS === 'web' && (role === 'DRONE' || role === 'DESTINATION')) {
-            setManualLocation(lat, lon);
+        if (role === 'DRONE' || role === 'DESTINATION') {
+            if (isEditingLocation) {
+                setManualLocation(lat, lon);
+            }
         }
         if (role === 'ADMIN') {
             setMissionLat(lat.toFixed(6).toString());
@@ -201,7 +212,17 @@ const HomeScreen = ({ navigation }) => {
                                 );
                             })}
                         </MapView>
-                        {Platform.OS === 'web' && (
+                        <View style={styles.mapActionOverlay}>
+                            <TouchableOpacity 
+                                style={[styles.actionBtn, isEditingLocation && styles.actionBtnActive]} 
+                                onPress={() => setIsEditingLocation(!isEditingLocation)}
+                            >
+                                <Text style={isEditingLocation ? styles.textWhite : styles.textDark}>
+                                    {isEditingLocation ? '💾 Lưu Vị trí' : '✏️ Sửa Vị trí'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                        {isEditingLocation && (
                             <View style={styles.mapHint}>
                                 <Text style={styles.mapHintText}>💡 Click để dời vị trí nếu GPS bị sai</Text>
                             </View>
@@ -448,11 +469,9 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.bottomOverlay}>
                 <Text style={styles.droneTitle}>🚁 Drone: {deviceId}</Text>
                 <Text style={styles.statusInfo}>Trạng thái: {activeDelivery ? deliveryStatus : 'Chờ nhiệm vụ'}</Text>
-                {Platform.OS === 'web' && (
-                    <TouchableOpacity style={[styles.manualToggle, isManualLocation && styles.manualActive]} onPress={() => setIsManualLocation(!isManualLocation)}>
-                        <Text style={isManualLocation ? styles.textWhite : {}}>{isManualLocation ? '📍 Vị trí thủ công (Click map để dời)' : '🌐 Vị trí GPS (Click map để dời)'}</Text>
-                    </TouchableOpacity>
-                )}
+                <TouchableOpacity style={[styles.manualToggle, isEditingLocation && styles.manualActive]} onPress={() => setIsEditingLocation(!isEditingLocation)}>
+                    <Text style={isEditingLocation ? styles.textWhite : {}}>{isEditingLocation ? '💾 Lưu Vị trí (Click map để dời)' : '✏️ Sửa Vị trí GPS'}</Text>
+                </TouchableOpacity>
             </View>
         </View>
     );
@@ -568,7 +587,11 @@ const styles = StyleSheet.create({
     droneBadge: { backgroundColor: '#E3F2FD', color: '#1976D2' },
     destBadge: { backgroundColor: '#E8F5E9', color: '#2E7D32' },
     adminBadge: { backgroundColor: '#FFF3E0', color: '#E65100' },
-    selectHint: { fontSize: 9, color: '#4CAF50', marginTop: 4, fontWeight: 'bold' }
+    selectHint: { fontSize: 9, color: '#4CAF50', marginTop: 4, fontWeight: 'bold' },
+    mapActionOverlay: { position: 'absolute', top: 10, right: 10, zIndex: 1000 },
+    actionBtn: { backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#ddd' },
+    actionBtnActive: { backgroundColor: '#4CAF50', borderColor: '#388E3C' },
+    textDark: { color: '#333', fontWeight: 'bold' }
 });
 
 export default HomeScreen;

@@ -11,7 +11,13 @@ export const AppProvider = ({ children }) => {
     const [serverUrl, setServerUrl] = useState('http://localhost:3000');
 
     const [currentLocation, setCurrentLocation] = useState(null);
-    const [isManualLocation, setIsManualLocation] = useState(false);
+    const [isManualLocation, _setIsManualLocation] = useState(false);
+    const isManualRef = useRef(false);
+
+    const setIsManualLocation = useCallback((val) => {
+        isManualRef.current = val;
+        _setIsManualLocation(val);
+    }, []);
 
     const [activeDelivery, setActiveDelivery] = useState(null);
     const [activeDeliveries, setActiveDeliveries] = useState([]);
@@ -124,6 +130,17 @@ export const AppProvider = ({ children }) => {
             MQTTService.connect((data) => {
                 if (data.type === 'TELEMETRY') {
                     const droneData = data.data;
+
+                    // Forward headless drone telemetry to the Node.js server
+                    // Only Admin forwards this to avoid event spam from multiple clients
+                    if (role === 'ADMIN' && droneData.lat && droneData.lng) {
+                        SocketService.updateHeadlessDrone(
+                            droneData.id || 'Drone-01',
+                            droneData.lat,
+                            droneData.lng
+                        );
+                    }
+
                     setDroneStatuses(prev => ({
                         ...prev,
                         [droneData.id || 'Drone-01']: {
@@ -215,7 +232,7 @@ export const AppProvider = ({ children }) => {
             // Then start watching
             LocationService.watchLocation((location) => {
                 setCurrentLocation(prev => {
-                    if (!isManualLocation) {
+                    if (!isManualRef.current) {
                         SocketService.updateLocation(location.latitude, location.longitude);
                         return location;
                     }
